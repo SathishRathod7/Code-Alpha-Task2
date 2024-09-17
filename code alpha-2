@@ -1,0 +1,126 @@
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+from scipy.stats import f_oneway
+from sklearn.model_selection import train_test_split
+from sklearn.linear_model import LinearRegression
+from sklearn.metrics import mean_squared_error, r2_score
+from sklearn.preprocessing import PolynomialFeatures
+from sklearn.pipeline import Pipeline
+
+# Correct the file path
+file_path = '/content/Unemployment_Rate_upto_11_2020.csv'
+
+# Load the CSV file into a DataFrame
+df = pd.read_csv(file_path)
+df.head()
+
+print("Original Column Names:")
+print(df.columns)
+
+df.columns = df.columns.str.strip()
+print("\nCleaned Column Names:")
+print(df.columns)
+
+if 'Date' in df.columns:
+    df['Date'] = df['Date'].str.strip()
+
+    df['Date'] = pd.to_datetime(df['Date'], format='%d-%m-%Y')
+
+    print("\nData types after conversion:")
+    print(df.dtypes)
+
+    df.head()
+else:
+    print("The 'Date' column was not found. Please check the dataset for any discrepancies.")
+
+missing_values = df.isnull().sum()
+print("Missing values in each column:")
+missing_values
+
+print("\nSummary statistics:")
+df.describe()
+df.rename(columns={
+    'Estimated Unemployment Rate (%)': 'Unemployment_Rate',
+    'Estimated Employed': 'Employed',
+    'Estimated Labour Participation Rate (%)': 'Labour_Participation_Rate',
+    'Region.1': 'Region_Category'
+}, inplace=True)
+
+df.head()
+
+plt.figure(figsize=(10, 6))
+sns.histplot(df['Unemployment_Rate'], bins=30, kde=True)
+plt.title('Distribution of Unemployment Rate')
+plt.xlabel('Unemployment Rate (%)')
+plt.ylabel('Frequency')
+plt.show()
+
+plt.figure(figsize=(10, 6))
+sns.scatterplot(x='Labour_Participation_Rate', y='Unemployment_Rate', data=df)
+plt.title('Unemployment Rate vs. Labour Participation Rate')
+plt.xlabel('Labour Participation Rate (%)')
+plt.ylabel('Unemployment Rate (%)')
+plt.show()
+correlation = df['Labour_Participation_Rate'].corr(df['Unemployment_Rate'])
+print(f"Correlation between Labour Participation Rate and Unemployment Rate: {correlation:.2f}")
+
+plt.figure(figsize=(14, 8))
+sns.lineplot(x='Date', y='Unemployment_Rate', data=df, marker='o')
+plt.title('Unemployment Rate Over Time')
+plt.xlabel('Date')
+plt.ylabel('Unemployment Rate (%)')
+plt.xticks(rotation=45)
+plt.show()
+
+plt.figure(figsize=(12, 8))
+sns.scatterplot(x='longitude', y='latitude', hue='Unemployment_Rate', size='Unemployment_Rate', data=df, palette='viridis', sizes=(20, 200))
+plt.title('Unemployment Rate by Region')
+plt.xlabel('Longitude')
+plt.ylabel('Latitude')
+plt.show()
+
+regions = df['Region_Category'].unique()
+anova_data = [df[df['Region_Category'] == region]['Unemployment_Rate'] for region in regions]
+
+anova_result = f_oneway(*anova_data)
+print(f"ANOVA test result: F-statistic = {anova_result.statistic:.2f}, p-value = {anova_result.pvalue:.4f}")
+
+if anova_result.pvalue < 0.05:
+    print("Result: Reject the null hypothesis. There is a significant difference in unemployment rates across regions.")
+else:
+    print("Result: Fail to reject the null hypothesis. No significant difference in unemployment rates across regions.")
+
+X = df[['Labour_Participation_Rate', 'Employed', 'longitude', 'latitude']]
+y = df['Unemployment_Rate']
+
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=42)
+
+print(f"Training set size: {X_train.shape[0]}")
+print(f"Test set size: {X_test.shape[0]}")
+
+model = LinearRegression()
+model.fit(X_train, y_train)
+y_pred = model.predict(X_test)
+mse = mean_squared_error(y_test, y_pred)
+r2 = r2_score(y_test, y_pred)
+print(f"Mean Squared Error (MSE): {mse:.2f}")
+print(f"R-squared (R2): {r2:.2f}")
+
+poly_model = Pipeline([
+    ('poly', PolynomialFeatures(degree=2)),
+    ('linear', LinearRegression())
+])
+poly_model.fit(X_train, y_train)
+y_pred_poly = poly_model.predict(X_test)
+mse_poly = mean_squared_error(y_test, y_pred_poly)
+r2_poly = r2_score(y_test, y_pred_poly)
+print(f"Polynomial Model - Mean Squared Error (MSE): {mse_poly:.2f}")
+print(f"Polynomial Model - R-squared (R2): {r2_poly:.2f}")
+
+final_model = model
+y_final_pred = final_model.predict(X_test)
+final_mse = mean_squared_error(y_test, y_final_pred)
+final_r2 = r2_score(y_test, y_final_pred)
+print(f"Final Model - Mean Squared Error (MSE): {final_mse:.2f}")
+print(f"Final Model - R-squared (R2): {final_r2:.2f}")
